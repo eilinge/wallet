@@ -1,0 +1,36 @@
+{
+    "address": "008ba566b92ff750caea2e75411970ace899972f",
+    "privatekey": "5285433c68cf8574ff27bca9990ced771e77ade3e3517d44298bfb0f59a88893",
+    "id": "b0d26877-971a-453a-98a9-93459f5d56c4",
+    "version": 3
+}
+
+{
+    "aes-128-ctr"
+    "df8ae10e3b664112132bf689a9e056bd06abd25930b0ba5228c874db65edec3723814073163f30cc6b9c19fafc7445b43f54b69b05f9271c6d52c4668f0cf005" {
+        "911459b9221bade4bcd68fe94616260e"
+    }
+    "scrypt" map[dklen: 32 n: 4096 p: 6 r: 8 salt: 0e8 f4d3c22a66a31aef63ec5c0067c78acada6539cf207c9e6c27f10af9a52c7] 2 c5891d2c93df2fe2dc4c663f3b2770fcf091a632e1f2ac3a285bd4665ff1ed4
+}
+
+{
+    "address": "45dea0fb0bba44f4fcf290bba71fd57d7117cbb8",
+    "crypto": {
+        "cipher": "aes-128-ctr",
+        "ciphertext": "b87781948a1befd247bff51ef4063f716cf6c2d3481163e9a8f42e1f9bb74145",
+        "cipherparams": {
+            "iv": "dc4926b48a105133d2f16b96833abf1e"
+        },
+        "kdf": "scrypt",
+        "kdfparams": {
+            "dklen": 32,
+            "n": 2,
+            "p": 1,
+            "r": 8,
+            "salt": "004244bbdc51cadda545b1cfa43cff9ed2ae88e08c61f1479dbb45410722f8f0"
+        },
+        "mac": "39990c1684557447940d4c69e06b1b82b2aceacb43f284df65c956daf3046b85"
+    },
+    "id": "ce541d8d-c79b-40f8-9f8c-20f59616faba",
+    "version": 3
+}
