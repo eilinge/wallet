@@ -64,3 +64,95 @@
         JoinPath()
     
     2. keystore.go(keyStore) 实现了keyStorePassphrase3个方法的接口
+
+## Key
+
+    type keyStore interface {
+        // Loads and decrypts the key from disk.
+        GetKey(addr common.Address, filename string, auth string) (*Key, error)
+        // Writes and encrypts the key.
+        StoreKey(filename string, k *Key, auth string) error
+        // Joins filename with the key directory unless it is already absolute.
+        JoinPath(filename string) string
+    }
+
+    type plainKeyJSON struct {
+        Address    string `json:"address"`
+        PrivateKey string `json:"privatekey"`
+        Id         string `json:"id"`
+        Version    int    `json:"version"`
+    }
+
+    type encryptedKeyJSONV3 struct {
+        Address string     `json:"address"`
+        Crypto  CryptoJSON `json:"crypto"`
+        Id      string     `json:"id"`
+        Version int        `json:"version"`
+    }
+
+    type encryptedKeyJSONV1 struct {
+        Address string     `json:"address"`
+        Crypto  CryptoJSON `json:"crypto"`
+        Id      string     `json:"id"`
+        Version string     `json:"version"`
+    }
+
+    type CryptoJSON struct {
+        Cipher       string                 `json:"cipher"`
+        CipherText   string                 `json:"ciphertext"`
+        CipherParams cipherparamsJSON       `json:"cipherparams"`
+        KDF          string                 `json:"kdf"`
+        KDFParams    map[string]interface{} `json:"kdfparams"`
+        MAC          string                 `json:"mac"`
+    }
+
+    type cipherparamsJSON struct {
+        IV string `json:"iv"`
+    }
+
+    key := &Key{
+        Id:         id,
+        Address:    crypto.PubkeyToAddress(privateKeyECDSA.PublicKey),
+        PrivateKey: privateKeyECDSA,
+    }
+
+    UnmarshalJSON(cj []byte)
+
+        u := new(uuid.UUID)
+        *u = uuid.Parse(keyJSON.Id)
+        k.Id = *u
+        addr, err := hex.DecodeString(keyJSON.Address)
+        privkey, err := crypto.HexToECDSA(keyJSON.PrivateKey)
+        k.Address = common.BytesToAddress(addr)
+        k.PrivateKey = privkey
+
+    NewKeyForDirectICAP(rand io.Reader) *Key
+
+    writeKeyFile(file string, content []byte)
+
+    keyFileName(keyAddr common.Address) string
+
+    toISO8601(t time.Time) string
+
+    storeNewKey(ks keyStore, rand io.Reader, auth string) (*Key, accounts.Account, error) 
+
+## keystore
+
+    type KeyStore struct {
+        storage  keyStore                     // Storage backend, might be cleartext or encrypted
+        cache    *accountCache                // In-memory account cache over the filesystem storage
+        changes  chan struct{}                // Channel receiving change notifications from the cache
+        unlocked map[common.Address]*unlocked // Currently unlocked account (decrypted private keys)
+
+        wallets     []accounts.Wallet       // Wallet wrappers around the individual key files
+        updateFeed  event.Feed              // Event feed to notify wallet additions/removals
+        updateScope event.SubscriptionScope // Subscription scope tracking current live listeners
+        updating    bool                    // Whether the event notification loop is running
+
+        mu sync.RWMutex
+    }
+
+    type unlocked struct {
+        *Key
+        abort chan struct{}
+    }
