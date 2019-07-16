@@ -83,9 +83,9 @@ func (w *watcher) loop() {
 	var (
 		debounceDuration = 500 * time.Millisecond
 		rescanTriggered  = false
-		debounce         = time.NewTimer(0)
+		debounce         = time.NewTimer(0) // debounce: 防抖动
 	)
-	// Ignore initial trigger
+	// Ignore initial trigger(触发器)
 	if !debounce.Stop() {
 		<-debounce.C
 	}
@@ -94,6 +94,7 @@ func (w *watcher) loop() {
 		select {
 		case <-w.quit:
 			return
+		// TODO: <-w.ev?
 		case <-w.ev:
 			// Trigger the scan (with delay), if not already triggered
 			if !rescanTriggered {

@@ -85,7 +85,7 @@ func newAccountCache(keydir string) (*accountCache, chan struct{}) {
 	ac := &accountCache{
 		keydir: keydir,
 		byAddr: make(map[common.Address][]accounts.Account),
-		notify: make(chan struct{}, 1), // 创建一个新账户时, 往notify中, 写入一个1
+		notify: make(chan struct{}, 1), // 创建一个新账户时, 缓存1个
 		fileC:  fileCache{all: mapset.NewThreadUnsafeSet()},
 	}
 	ac.watcher = newWatcher(ac) // 生成一个watcher
@@ -119,7 +119,7 @@ func (ac *accountCache) add(newAccount accounts.Account) {
 	// x.Cmp(y): -1 if x < y 0 if x == y 1 if x > y
 	// Search uses binary search to find and return the smallest index i in [0, n) at which f(i) is true
 	// If there is no such index, Search returns n
-	i := sort.Search(len(ac.all), func(i int) bool { return ac.all[i].URL.Cmp(newAccount.URL) >= 0 })
+	i := sort.Search(len(ac.all), func(i int) bool { return ac.all[i].URL.Cmp(newAccount.URL) >= 0 }) // ?
 	// 已经存在该账户
 	if i < len(ac.all) && ac.all[i] == newAccount {
 		return
@@ -143,7 +143,7 @@ func (ac *accountCache) delete(removed accounts.Account) {
 	ac.all = removeAccount(ac.all, removed)
 	// []accounts.Account
 	if ba := removeAccount(ac.byAddr[removed.Address], removed); len(ba) == 0 {
-		//  假使在accounts.Account中仅其有一个, 移除account之后, accounts.Account为空, 清除ac.byAddr
+		//  假使在accounts.Account中仅其有一个, 移除account之后, accounts.Account为空, 清除ac.byAddr[account.Address]
 		delete(ac.byAddr, removed.Address)
 	} else {
 		ac.byAddr[removed.Address] = ba
@@ -182,13 +182,17 @@ func removeAccount(slice []accounts.Account, elem accounts.Account) []accounts.A
 // Callers must hold ac.mu.
 func (ac *accountCache) find(a accounts.Account) (accounts.Account, error) {
 	// Limit search to address candidates if possible.
+	// 1. 根据[]accounts.Address进行查找
 	matches := ac.all
+	// 2. 根据a.Address相对应的[]accounts.Address进行查找
 	if (a.Address != common.Address{}) {
 		matches = ac.byAddr[a.Address]
 	}
+	// a.URL.Path
 	if a.URL.Path != "" {
 		// If only the basename is specified, complete the path.
 
+		// 3. 根据路径查找
 		// ContainsRune 判断字符串 s 中是否包含字符 r
 		// os.PathSeparator: "/"
 		if !strings.ContainsRune(a.URL.Path, filepath.Separator) {
@@ -206,11 +210,16 @@ func (ac *accountCache) find(a accounts.Account) (accounts.Account, error) {
 			return accounts.Account{}, ErrNoMatch
 		}
 	}
-	// a.URL.Path == ""
-	switch len(matches) {
-	case 1:
+	// TODO: Need to confirm correctness
+	// a.Address
+	switch {
+	// ac.byAddr[a.Address], 有且仅有一个, 已进行添加ac.byAddr[a.Address] = []ac.account
+	// TODO: len(ac.byAddr[a.Address]) > 1
+	// case len(matches) == 1:
+	case len(matches) >= 1:
 		return matches[0], nil
-	case 0:
+	// ac.byAddr[a.Address] 不包含任何地址, 还未添加任何a.Address
+	case len(matches) == 0:
 		return accounts.Account{}, ErrNoMatch
 	default:
 		err := &AmbiguousAddrError{Addr: a.Address, Matches: make([]accounts.Account, len(matches))}
@@ -239,6 +248,7 @@ func (ac *accountCache) maybeReload() {
 	}
 	// No watcher running, start it.
 	ac.watcher.start()
+	// 重启计时器
 	ac.throttle.Reset(minReloadInterval)
 	ac.mu.Unlock()
 	ac.scanAccounts()
@@ -247,9 +257,11 @@ func (ac *accountCache) maybeReload() {
 func (ac *accountCache) close() {
 	ac.mu.Lock()
 	ac.watcher.close()
+	// 关闭计时器
 	if ac.throttle != nil {
 		ac.throttle.Stop()
 	}
+	// 关闭ac.notify通道
 	if ac.notify != nil {
 		close(ac.notify)
 		ac.notify = nil
@@ -266,6 +278,7 @@ func (ac *accountCache) scanAccounts() error {
 		log.Debug("Failed to reload keystore contents", "err", err)
 		return err
 	}
+	// Returns the number of elements in the set.
 	if creates.Cardinality() == 0 && deletes.Cardinality() == 0 && updates.Cardinality() == 0 {
 		return nil
 	}
@@ -276,6 +289,7 @@ func (ac *accountCache) scanAccounts() error {
 			Address string `json:"address"`
 		}
 	)
+	// 闭包函数:readAccount(path string), 解析keystore文件中的address
 	readAccount := func(path string) *accounts.Account {
 		fd, err := os.Open(path)
 		if err != nil {
@@ -304,7 +318,9 @@ func (ac *accountCache) scanAccounts() error {
 	// Process all the file diffs
 	start := time.Now()
 
+	// set.Set -> slice
 	for _, p := range creates.ToSlice() {
+		// interface{}转换成string
 		if a := readAccount(p.(string)); a != nil {
 			ac.add(*a)
 		}
@@ -322,6 +338,7 @@ func (ac *accountCache) scanAccounts() error {
 	end := time.Now()
 
 	select {
+	// TODO: what is ac.notify role?
 	case ac.notify <- struct{}{}:
 	default:
 	}

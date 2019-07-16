@@ -31,7 +31,7 @@ import (
 // fileCache is a cache of files seen during scan of keystore.
 type fileCache struct {
 	all     mapset.Set // Set of all files from the keystore folder
-	lastMod time.Time  // Last time instance when a file was modified
+	lastMod time.Time  // Last time instance when a file was modified, checkout status by time.Time
 	mu      sync.RWMutex
 }
 
@@ -65,10 +65,15 @@ func (fc *fileCache) scan(keyDir string) (mapset.Set, mapset.Set, mapset.Set, er
 		// Gather the set of all and fresly modified files
 		all.Add(path)
 
+		// 该文件的编译时间
 		modified := fi.ModTime()
+		// 等待持续时间过去，然后在返回的通道上发送当前时间。
+		// 比较时间是否在fc.lastMod之后
 		if modified.After(fc.lastMod) {
+			// 将修改的文件, 添加到总编译的set中
 			mods.Add(path)
 		}
+		// 替换成之前的编译时间
 		if modified.After(newLastMod) {
 			newLastMod = modified
 		}
