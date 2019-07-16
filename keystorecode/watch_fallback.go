@@ -21,7 +21,9 @@
 
 package keystorecode
 
-type watcher struct{ running bool }
+type watcher struct {
+	running bool
+}
 
 func newWatcher(*accountCache) *watcher { return new(watcher) }
 func (*watcher) start()                 {}

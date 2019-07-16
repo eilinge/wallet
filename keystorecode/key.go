@@ -42,7 +42,7 @@ const (
 type Key struct {
 	Id uuid.UUID // Version 4 "random" for unique id not derived from key data
 	// to simplify lookups we also store the address
-	Address common.Address
+	Address common.Address // crypto.PubkeyToAddress(privateKeyECDSA.PublicKey)
 	// we only store privkey as pubkey/address can be derived from it
 	// privkey in this struct is always in plaintext
 	PrivateKey *ecdsa.PrivateKey
@@ -78,13 +78,14 @@ type encryptedKeyJSONV1 struct {
 	Version string     `json:"version"`
 }
 
+// CryptoJSON ...
 type CryptoJSON struct {
 	Cipher       string                 `json:"cipher"`
-	CipherText   string                 `json:"ciphertext"`
-	CipherParams cipherparamsJSON       `json:"cipherparams"`
+	CipherText   string                 `json:"ciphertext"`   // derivedKey[:16], data -> cipherText
+	CipherParams cipherparamsJSON       `json:"cipherparams"` // []byte(rand.Reader) -> iv(len(iv)=16)
 	KDF          string                 `json:"kdf"`
-	KDFParams    map[string]interface{} `json:"kdfparams"`
-	MAC          string                 `json:"mac"`
+	KDFParams    map[string]interface{} `json:"kdfparams"` // []byte(rand.Reader) -> kdfparams.salt
+	MAC          string                 `json:"mac"`       // derivedKey[16:32], cipherText -> mac
 }
 
 type cipherparamsJSON struct {
@@ -93,7 +94,9 @@ type cipherparamsJSON struct {
 
 func (k *Key) MarshalJSON() (j []byte, err error) {
 	jStruct := plainKeyJSON{
+		// common.Address -> 0x + Address
 		hex.EncodeToString(k.Address[:]),
+		// ecdsa.PrivateKey -> []byte -> 0x+String
 		hex.EncodeToString(crypto.FromECDSA(k.PrivateKey)),
 		k.Id.String(),
 		version,
@@ -102,6 +105,7 @@ func (k *Key) MarshalJSON() (j []byte, err error) {
 	return j, err
 }
 
+// UnmarshalJSON Id, address, privekey
 func (k *Key) UnmarshalJSON(j []byte) (err error) {
 	keyJSON := new(plainKeyJSON)
 	err = json.Unmarshal(j, &keyJSON)
@@ -127,6 +131,7 @@ func (k *Key) UnmarshalJSON(j []byte) (err error) {
 	return nil
 }
 
+// newKeyFromECDS *ecdsa.PrivateKey -> *Key
 func newKeyFromECDSA(privateKeyECDSA *ecdsa.PrivateKey) *Key {
 	id := uuid.NewRandom()
 	key := &Key{
@@ -146,12 +151,15 @@ func NewKeyForDirectICAP(rand io.Reader) *Key {
 	if err != nil {
 		panic("key generation: could not read from random source: " + err.Error())
 	}
+	// []byte -> *Reader
 	reader := bytes.NewReader(randBytes)
+	// elliptic.Curve 256 -> privateKeyECDSA
 	privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), reader)
 	if err != nil {
 		panic("key generation: ecdsa.GenerateKey failed: " + err.Error())
 	}
 	key := newKeyFromECDSA(privateKeyECDSA)
+	// retry until the first byte is 0.
 	if !strings.HasPrefix(key.Address.Hex(), "0x00") {
 		return NewKeyForDirectICAP(rand)
 	}
@@ -166,6 +174,7 @@ func newKey(rand io.Reader) (*Key, error) {
 	return newKeyFromECDSA(privateKeyECDSA), nil
 }
 
+// GetKey/ StoreKey: 并没有使用密码
 func storeNewKey(ks keyStore, rand io.Reader, auth string) (*Key, accounts.Account, error) {
 	key, err := newKey(rand)
 	if err != nil {
@@ -176,6 +185,7 @@ func storeNewKey(ks keyStore, rand io.Reader, auth string) (*Key, accounts.Accou
 		URL:     accounts.URL{Scheme: KeyStoreScheme, Path: ks.JoinPath(keyFileName(key.Address))},
 	}
 	if err := ks.StoreKey(a.URL.Path, key, auth); err != nil {
+		// 假使存储不成功, 将privateKey清零
 		zeroKey(key.PrivateKey)
 		return nil, a, err
 	}
@@ -227,6 +237,7 @@ func toISO8601(t time.Time) string {
 	} else {
 		tz = fmt.Sprintf("%03d00", offset/3600)
 	}
+	// 格式化时间戳
 	return fmt.Sprintf("%04d-%02d-%02dT%02d-%02d-%02d.%09d%s",
 		t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), tz)
 }

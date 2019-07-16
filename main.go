@@ -78,21 +78,14 @@ func HdKeyStore(mne string, seed []byte) {
 		}
 		// 0xb2E4BEec903EDB94054b4f91C1722A691F82a6C6
 		fmt.Println(account.Address.Hex())
-		cj, err := GetEncryptDataV3(seed, []byte(auth), LightScryptN, LightScryptP)
+		cj, err := keystore.EncryptDataV3(seed, []byte(auth), LightScryptN, LightScryptP)
+		if err != nil {
+			fmt.Println("failed to keystore.EncryptDataV3:", err)
+			return
+		}
 		NewKey(account.Address, cj)
 	}
 
-}
-
-// GetEncryptDataV3 ...
-func GetEncryptDataV3(data, auth []byte, scryptN, scryptP int) (cj keystore.CryptoJSON, err error) {
-	cj, err = keystore.EncryptDataV3(data, auth, scryptN, scryptP)
-
-	if err != nil {
-		fmt.Println("failed to keystore.EncryptDataV3:", err)
-		return
-	}
-	return
 }
 
 // NewKey ...

@@ -29,6 +29,9 @@ type keyStorePlain struct {
 	keysDirPath string
 }
 
+/*
+GetKey/ StoreKey: 并没有使用密码
+*/
 func (ks keyStorePlain) GetKey(addr common.Address, filename, auth string) (*Key, error) {
 	fd, err := os.Open(filename)
 	if err != nil {
@@ -53,6 +56,7 @@ func (ks keyStorePlain) StoreKey(filename string, key *Key, auth string) error {
 	return writeKeyFile(filename, content)
 }
 
+// JoinPath 生成绝对路径
 func (ks keyStorePlain) JoinPath(filename string) string {
 	if filepath.IsAbs(filename) {
 		return filename
