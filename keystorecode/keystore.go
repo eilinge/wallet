@@ -75,6 +75,17 @@ type unlocked struct {
 	abort chan struct{}
 }
 
+/*
+秘钥签名
+	a, key, err := ks.getDecryptedKey(account, passphrase)
+	crypto.Sign(hash, key.PrivateKey)
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	return crypto.Sign(hash, unlockedKey.PrivateKey)
+
+
+*/
+
 // NewKeyStore creates a keystore for the given directory.
 func NewKeyStore(keydir string, scryptN, scryptP int) *KeyStore {
 	keydir, _ = filepath.Abs(keydir)

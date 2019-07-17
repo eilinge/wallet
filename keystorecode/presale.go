@@ -31,7 +31,7 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 )
 
-// creates a Key and stores that in the given KeyStore by decrypting a presale key JSON
+// creates a Key and stores that in the given KeyStore by decrypting a presale(预售) key JSON
 func importPreSaleKey(keyStore keyStore, keyJSON []byte, password string) (accounts.Account, *Key, error) {
 	key, err := decryptPreSaleKey(keyJSON, password)
 	if err != nil {
@@ -51,10 +51,10 @@ func importPreSaleKey(keyStore keyStore, keyJSON []byte, password string) (accou
 
 func decryptPreSaleKey(fileContent []byte, password string) (key *Key, err error) {
 	preSaleKeyStruct := struct {
-		EncSeed string
-		EthAddr string
+		EncSeed string // 加密种子
+		EthAddr string // common.Address
 		Email   string
-		BtcAddr string
+		BtcAddr string // 比特币钱包
 	}{}
 	err = json.Unmarshal(fileContent, &preSaleKeyStruct)
 	if err != nil {
@@ -76,7 +76,9 @@ func decryptPreSaleKey(fileContent []byte, password string) (key *Key, err error
 		2000 rounds of PBKDF2 with HMAC-SHA-256 using password as salt (:().
 		16 byte key length within PBKDF2 and resulting key is used as AES key
 	*/
+	// 生成私钥ecKey(*ecdsa.PrivateKey)
 	passBytes := []byte(password)
+	// 密码: passBytes 秘钥: derivedKey 明文: plainText 密文: cipherText
 	derivedKey := pbkdf2.Key(passBytes, passBytes, 2000, 16, sha256.New)
 	plainText, err := aesCBCDecrypt(derivedKey, cipherText, iv)
 	if err != nil {
@@ -98,18 +100,22 @@ func decryptPreSaleKey(fileContent []byte, password string) (key *Key, err error
 	return key, err
 }
 
+// aesCTRXOR 秘钥: key 明文: inText
 func aesCTRXOR(key, inText, iv []byte) ([]byte, error) {
 	// AES-128 is selected due to size of encryptKey.
 	aesBlock, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
+	// 进行填充
 	stream := cipher.NewCTR(aesBlock, iv)
 	outText := make([]byte, len(inText))
+	// 对明文进行加密
 	stream.XORKeyStream(outText, inText)
 	return outText, err
 }
 
+// aesCBCDecrypt 密文: cipherText 秘钥: key 明文: plaintext
 func aesCBCDecrypt(key, cipherText, iv []byte) ([]byte, error) {
 	aesBlock, err := aes.NewCipher(key)
 	if err != nil {
@@ -126,6 +132,7 @@ func aesCBCDecrypt(key, cipherText, iv []byte) ([]byte, error) {
 }
 
 // From https://leanpub.com/gocrypto/read#leanpub-auto-block-cipher-modes
+// 除去填充
 func pkcs7Unpad(in []byte) []byte {
 	if len(in) == 0 {
 		return nil

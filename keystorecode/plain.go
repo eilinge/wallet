@@ -32,6 +32,8 @@ type keyStorePlain struct {
 /*
 GetKey/ StoreKey: 并没有使用密码
 */
+
+// GetKey account.Address, filename -> Key
 func (ks keyStorePlain) GetKey(addr common.Address, filename, auth string) (*Key, error) {
 	fd, err := os.Open(filename)
 	if err != nil {

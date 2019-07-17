@@ -85,6 +85,7 @@ passphrase
 
 EncryptKey(key *Key, auth string, scryptN, scryptP int) (json.Marshal(encryptedKeyJSONV3))
 DecryptKey(keyjson []byte, auth string) (*Key, error)
+
 EncryptDataV3(data, auth []byte, scryptN, scryptP int) (CryptoJSON, error)
 DecryptDataV3(cryptoJson CryptoJSON, auth string) ([]byte(plainText), error)
 
@@ -98,14 +99,15 @@ DECrypto
 	plainText, err := aesCTRXOR(derivedKey[:16], cipherText, iv)
 	calculatedMAC := crypto.Keccak256(derivedKey[16:32], cipherText)
 
+privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand)
+
 keyBytes, err := DecryptDataV3(*encryptedKeyJSONV?.Crypto, auth)
-key := crypto.ToECDSAUnsafe(keyBytes)
+crypto.ToECDSAUnsafe(keyBytes) (*ecdsa.PrivateKey)
 
 getKDFKey(cryptoJSON CryptoJSON, auth string) ([]byte, error)
-scrypt.Key(authArray, salt, n, r, p, dkLen)
-pbkdf2.Key(authArray, salt, c, dkLen, sha256.New)
+	scrypt.Key(authArray, salt, n, r, p, dkLen)
+	pbkdf2.Key(authArray, salt, c, dkLen, sha256.New)
 
-crypto.ToECDSAUnsafe(keyBytes) (*ecdsa.PrivateKey)
 */
 
 func (ks keyStorePassphrase) GetKey(addr common.Address, filename, auth string) (*Key, error) {
@@ -172,7 +174,7 @@ func EncryptDataV3(data, auth []byte, scryptN, scryptP int) (CryptoJSON, error) 
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		panic("reading from crypto/rand failed: " + err.Error())
 	}
-	// []byte
+	// 秘钥: []byte
 	derivedKey, err := scrypt.Key(auth, salt, scryptN, scryptR, scryptP, scryptDKLen)
 	if err != nil {
 		return CryptoJSON{}, err
@@ -184,7 +186,8 @@ func EncryptDataV3(data, auth []byte, scryptN, scryptP int) (CryptoJSON, error) 
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
 		panic("reading from crypto/rand failed: " + err.Error())
 	}
-	// derivedKey[:16], data -> cipherText
+	// 16byte秘钥, 对称加密(aes)
+	// derivedKey[:16], data -> cipherText: 密文
 	cipherText, err := aesCTRXOR(encryptKey, data, iv)
 	if err != nil {
 		return CryptoJSON{}, err
@@ -254,7 +257,7 @@ func DecryptKey(keyjson []byte, auth string) (*Key, error) {
 		keyBytes, keyId, err = decryptKeyV1(k, auth)
 	} else {
 		k := new(encryptedKeyJSONV3)
-		// // encryptedKeyJSONV? -> encryptedKeyJSONV3
+		// encryptedKeyJSONV? -> encryptedKeyJSONV3
 		if err := json.Unmarshal(keyjson, k); err != nil {
 			return nil, err
 		}

@@ -182,9 +182,8 @@ func removeAccount(slice []accounts.Account, elem accounts.Account) []accounts.A
 // Callers must hold ac.mu.
 func (ac *accountCache) find(a accounts.Account) (accounts.Account, error) {
 	// Limit search to address candidates if possible.
-	// 1. 根据[]accounts.Address进行查找
 	matches := ac.all
-	// 2. 根据a.Address相对应的[]accounts.Address进行查找
+	// 1. 根据a.Address相对应的[]accounts.Address进行查找
 	if (a.Address != common.Address{}) {
 		matches = ac.byAddr[a.Address]
 	}
@@ -192,7 +191,7 @@ func (ac *accountCache) find(a accounts.Account) (accounts.Account, error) {
 	if a.URL.Path != "" {
 		// If only the basename is specified, complete the path.
 
-		// 3. 根据路径查找
+		// 2. 根据路径查找
 		// ContainsRune 判断字符串 s 中是否包含字符 r
 		// os.PathSeparator: "/"
 		if !strings.ContainsRune(a.URL.Path, filepath.Separator) {
@@ -210,23 +209,33 @@ func (ac *accountCache) find(a accounts.Account) (accounts.Account, error) {
 			return accounts.Account{}, ErrNoMatch
 		}
 	}
-	// TODO: Need to confirm correctness
-	// a.Address
-	switch {
-	// ac.byAddr[a.Address], 有且仅有一个, 已进行添加ac.byAddr[a.Address] = []ac.account
-	// TODO: len(ac.byAddr[a.Address]) > 1
-	// case len(matches) == 1:
-	case len(matches) >= 1:
-		return matches[0], nil
-	// ac.byAddr[a.Address] 不包含任何地址, 还未添加任何a.Address
-	case len(matches) == 0:
-		return accounts.Account{}, ErrNoMatch
-	default:
-		err := &AmbiguousAddrError{Addr: a.Address, Matches: make([]accounts.Account, len(matches))}
-		copy(err.Matches, matches)
-		sort.Sort(accountsByURL(err.Matches))
-		return accounts.Account{}, err
+	/*
+		// a.Address
+		switch len(matches) {
+		// ac.byAddr[a.Address], 有且仅有一个, 已进行添加ac.byAddr[a.Address] = []ac.account
+		// TODO: len(ac.byAddr[a.Address]) > 1
+		// case len(matches) == 1:
+		case 1:
+			return matches[0], nil
+		// ac.byAddr[a.Address] 不包含任何地址, 还未添加任何a.Address
+		case 0:
+			return accounts.Account{}, ErrNoMatch
+		default:
+			err := &AmbiguousAddrError{Addr: a.Address, Matches: make([]accounts.Account, len(matches))}
+			copy(err.Matches, matches)
+			sort.Sort(accountsByURL(err.Matches))
+			return accounts.Account{}, err
+		}
+	*/
+	for _, k := range matches {
+		if k.Address == a.Address {
+			return k, nil
+		}
 	}
+	err := &AmbiguousAddrError{Addr: a.Address, Matches: make([]accounts.Account, len(matches))}
+	copy(err.Matches, matches)
+	sort.Sort(accountsByURL(err.Matches))
+	return accounts.Account{}, err
 }
 
 func (ac *accountCache) maybeReload() {
