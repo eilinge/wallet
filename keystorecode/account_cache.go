@@ -76,9 +76,9 @@ type accountCache struct {
 	mu       sync.Mutex                            // lock when operate
 	all      accountsByURL                         // []accounts.Account
 	byAddr   map[common.Address][]accounts.Account // 一个地址(Address), 存储多个账户[]accounts.Account{Address, URL}
-	throttle *time.Timer
-	notify   chan struct{}
-	fileC    fileCache
+	throttle *time.Timer                           // 计时器 ?
+	notify   chan struct{}                         // 添加新用户时, 进行通知
+	fileC    fileCache                             // 根据文件的状态, 可以推出create, update, delelte的数量
 }
 
 func newAccountCache(keydir string) (*accountCache, chan struct{}) {
@@ -210,14 +210,10 @@ func (ac *accountCache) find(a accounts.Account) (accounts.Account, error) {
 		}
 	}
 	/*
-		// a.Address
+		根据a.Address 查找时, 忽略了a.Address可以存储多个账户
 		switch len(matches) {
-		// ac.byAddr[a.Address], 有且仅有一个, 已进行添加ac.byAddr[a.Address] = []ac.account
-		// TODO: len(ac.byAddr[a.Address]) > 1
-		// case len(matches) == 1:
 		case 1:
 			return matches[0], nil
-		// ac.byAddr[a.Address] 不包含任何地址, 还未添加任何a.Address
 		case 0:
 			return accounts.Account{}, ErrNoMatch
 		default:

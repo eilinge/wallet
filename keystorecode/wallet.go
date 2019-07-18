@@ -71,6 +71,7 @@ func (w *keystoreWallet) Contains(account accounts.Account) bool {
 
 // Derive implements accounts.Wallet, but is a noop for plain wallets since there
 // is no notion of hierarchical account derivation for plain keystore accounts.
+// Derive(派生)实现了accounts.Wallet，但是对于普通钱包是noop，因为普通密钥库帐户没有分层帐户派生的概念。
 func (w *keystoreWallet) Derive(path accounts.DerivationPath, pin bool) (accounts.Account, error) {
 	return accounts.Account{}, accounts.ErrNotSupported
 }

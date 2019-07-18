@@ -30,7 +30,8 @@ type keyStorePlain struct {
 }
 
 /*
-GetKey/ StoreKey: 并没有使用密码
+实现了 type keystore interface{}
+GetKey/ StoreKey: 并没有使用密码(已丢弃)
 */
 
 // GetKey account.Address, filename -> Key

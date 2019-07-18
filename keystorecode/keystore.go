@@ -62,7 +62,7 @@ type KeyStore struct {
 	changes  chan struct{}                // Channel receiving change notifications from the cache
 	unlocked map[common.Address]*unlocked // Currently unlocked account (decrypted private keys)
 
-	wallets     []accounts.Wallet       // Wallet wrappers around the individual key files
+	wallets     []accounts.Wallet       // Wallet wrappers around the individual key files: 围绕各个密钥文件的钱包包装
 	updateFeed  event.Feed              // Event feed to notify wallet additions/removals
 	updateScope event.SubscriptionScope // Subscription scope tracking current live listeners
 	updating    bool                    // Whether the event notification loop is running
@@ -87,8 +87,10 @@ type unlocked struct {
 */
 
 // NewKeyStore creates a keystore for the given directory.
+// 生成的keystore, 执行时需要auth
 func NewKeyStore(keydir string, scryptN, scryptP int) *KeyStore {
 	keydir, _ = filepath.Abs(keydir)
+
 	ks := &KeyStore{storage: &keyStorePassphrase{keydir, scryptN, scryptP, false}}
 	ks.init(keydir)
 	return ks
@@ -96,13 +98,16 @@ func NewKeyStore(keydir string, scryptN, scryptP int) *KeyStore {
 
 // NewPlaintextKeyStore creates a keystore for the given directory.
 // Deprecated: Use NewKeyStore.
+// 生成的keystore, 执行时不需要auth
 func NewPlaintextKeyStore(keydir string) *KeyStore {
 	keydir, _ = filepath.Abs(keydir)
+	// keyStorePlain实现了kestore的接口(getKey/storekey)
 	ks := &KeyStore{storage: &keyStorePlain{keydir}}
 	ks.init(keydir)
 	return ks
 }
 
+// TODO:
 func (ks *KeyStore) init(keydir string) {
 	// Lock the mutex since the account cache might call back with events
 	ks.mu.Lock()
@@ -142,13 +147,16 @@ func (ks *KeyStore) Wallets() []accounts.Wallet {
 
 // refreshWallets retrieves the current account list and based on that does any
 // necessary wallet refreshes.
+// TODO:
 func (ks *KeyStore) refreshWallets() {
 	// Retrieve the current list of accounts
 	ks.mu.Lock()
+	// 所有账户
 	accs := ks.cache.accounts()
 
 	// Transform the current list of wallets into the new one
 	var (
+		// 所有钱包
 		wallets = make([]accounts.Wallet, 0, len(accs))
 		events  []accounts.WalletEvent
 	)
@@ -175,6 +183,7 @@ func (ks *KeyStore) refreshWallets() {
 		}
 	}
 	// Drop any leftover wallets and set the new batch
+	// 丢弃任何剩余的钱包并设置新批次
 	for _, wallet := range ks.wallets {
 		events = append(events, accounts.WalletEvent{Wallet: wallet, Kind: accounts.WalletDropped})
 	}
@@ -189,12 +198,13 @@ func (ks *KeyStore) refreshWallets() {
 
 // Subscribe implements accounts.Backend, creating an async subscription to
 // receive notifications on the addition or removal of keystore wallets.
+// TODO:
 func (ks *KeyStore) Subscribe(sink chan<- accounts.WalletEvent) event.Subscription {
 	// We need the mutex to reliably start/stop the update loop
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
-	// Subscribe the caller and track the subscriber count
+	// Subscribe the caller and track(跟踪) the subscriber count
 	sub := ks.updateScope.Track(ks.updateFeed.Subscribe(sink))
 
 	// Subscribers require an active notification loop, start it
@@ -210,11 +220,14 @@ func (ks *KeyStore) Subscribe(sink chan<- accounts.WalletEvent) event.Subscripti
 // account change events from the underlying account cache, and also periodically
 // forces a manual refresh (only triggers for systems where the filesystem notifier
 // is not running).
+// TODO:
 func (ks *KeyStore) updater() {
 	for {
 		// Wait for an account update or a refresh timeout
 		select {
+		// newAccountCache(keydir): notify: make(chan struct{}, 1)
 		case <-ks.changes:
+		// time.After()表示time.Duration长的时候后返回一条time.Time类型的通道消息。那么，基于这个函数，就相当于实现了定时器，且是无阻塞的。
 		case <-time.After(walletRefreshCycle):
 		}
 		// Run the wallet refresher
@@ -365,11 +378,12 @@ func (ks *KeyStore) TimedUnlock(a accounts.Account, passphrase string, timeout t
 			zeroKey(key.PrivateKey)
 			return nil
 		}
-		// Terminate the expire goroutine and replace it below.
+		// Terminate the expire goroutine and replace it below.// 终止过期
 		close(u.abort)
 	}
 	if timeout > 0 {
 		u = &unlocked{Key: key, abort: make(chan struct{})}
+		// 时间到了之后, 对账户进行锁定
 		go ks.expire(a.Address, u, timeout)
 	} else {
 		u = &unlocked{Key: key}

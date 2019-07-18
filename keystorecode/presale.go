@@ -53,8 +53,8 @@ func decryptPreSaleKey(fileContent []byte, password string) (key *Key, err error
 	preSaleKeyStruct := struct {
 		EncSeed string // 加密种子
 		EthAddr string // common.Address
-		Email   string
-		BtcAddr string // 比特币钱包
+		Email   string // 没用到
+		BtcAddr string // 比特币钱包(没用到)
 	}{}
 	err = json.Unmarshal(fileContent, &preSaleKeyStruct)
 	if err != nil {
