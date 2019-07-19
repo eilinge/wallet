@@ -1,7 +1,9 @@
 package client
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -9,10 +11,12 @@ import (
 	"math/big"
 	"os"
 	"strconv"
-	"strings"
+	"wallet/abi"
 	"wallet/hdkeystore"
 	"wallet/hdwallet"
+	"wallet/utils"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -39,17 +43,17 @@ func NewCLI(path, url string) *CLI {
 	return &CLI{
 		DataPath:   path,
 		NetworkURL: url,
-		TokensFile: "token.json",
+		TokensFile: "tokens.json",
 	}
 }
 
 // Usage ...
 func (cli *CLI) Usage() {
 	fmt.Println("./wallet createwallet -name ACCOUNT_NAME -- for create a new wallet")
-	fmt.Println("./wallet balance -name ACCOUNT_NAME -- for get ether balance of a address")
-	fmt.Println("./wallet transfer -name ACCOUNT_NAME -toaddress ADDRESS -value VALUE -- for send ether to ADDRESS")
+	fmt.Println("./wallet balance -account ACCOUNT_NAME -- for get ether balance of a address")
+	fmt.Println("./wallet transfer -from ACCOUNT_NAME -to ADDRESS -value VALUE -- for send ether to ADDRESS")
 	fmt.Println("./wallet addtoken -addr CONTRACT_ADDR -- for send ether to ADDRESS")
-	fmt.Println("./wallet tokenbalance -name ACCOUNT_NAME -- for get token balances")
+	fmt.Println("./wallet tokenbalance -name ACCOUNT_NAME -symbol TOKEN -- for get token balances")
 	fmt.Println("./wallet sendtoken -name ACCOUNT_NAME -symbol SYMBOL -toaddress ADDRESS -value VALUE -- for send tokens to ADDRESS")
 }
 
@@ -78,6 +82,22 @@ func (cli *CLI) Run() {
 	transferTo := transfer.String("to", "", "to_Address")
 	transferValue := transfer.Int64("value", 0, "Value")
 
+	// addtoken -addr CONTRACT_ADDR
+	addtoken := flag.NewFlagSet("addtoken", flag.ExitOnError)
+	tokenAddr := addtoken.String("addr", "", "Contact_Address")
+
+	// tokenbalance -addr ACCOUNT_NAME -- for get token balances
+	token := flag.NewFlagSet("tokenbalance", flag.ExitOnError)
+	addr := token.String("addr", "", "Contact_Address")
+	symbol := token.String("symbol", "", "TOKEN_SYMBOL")
+
+	// sendtoken -addr ACCOUNT_NAME -symbol SYMBOL -toaddress ADDRESS -value VALUE
+	sendtoken := flag.NewFlagSet("sendtoken", flag.ExitOnError)
+	fromAddr := sendtoken.String("from", "", "Contact_Address")
+	sendSymbol := sendtoken.String("symbol", "", "TOKEN_SYMBOL")
+	toAddr := sendtoken.String("to", "", "Contact_Address")
+	tokenValue := sendtoken.Int64("value", 0, "TOKEN_VALUE")
+
 	switch os.Args[1] {
 	case "createwallet":
 		// 获取
@@ -93,11 +113,32 @@ func (cli *CLI) Run() {
 		if err != nil {
 			log.Panic("failed to Parse balance params:", err)
 		}
-	case "tranfer":
+	case "transfer":
 		err := transfer.Parse(os.Args[2:])
 
 		if err != nil {
 			log.Panic("failed to Parse balance params:", err)
+		}
+
+	case "addtoken":
+		err := addtoken.Parse(os.Args[2:])
+
+		if err != nil {
+			log.Panic("failed to Parse addtoken params:", err)
+		}
+
+	case "tokenbalance":
+		err := token.Parse(os.Args[2:])
+
+		if err != nil {
+			log.Panic("failed to Parse tokenbalance params:", err)
+		}
+
+	case "sendtoken":
+		err := sendtoken.Parse(os.Args[2:])
+
+		if err != nil {
+			log.Panic("failed to Parse sendtoken params:", err)
 		}
 	default:
 		cli.Usage()
@@ -133,10 +174,36 @@ func (cli *CLI) Run() {
 
 	if transfer.Parsed() {
 		if *transferFrom == "" || *transferTo == "" || *transferValue == 0 {
-			log.Fatal("transfer parames")
+			log.Fatal("transfer parames failed")
 		}
 
 		cli.Transfer(*transferFrom, *transferTo, *transferValue)
+	}
+
+	if addtoken.Parsed() {
+		if *tokenAddr == "" {
+			log.Fatal("addtoken parames failed")
+		}
+
+		cli.Addtoken(*tokenAddr)
+	}
+
+	// tokenbalance
+	if token.Parsed() {
+		if *addr == "" || *symbol == "" {
+			log.Fatal("tokenbalance parames failed")
+		}
+
+		cli.TokenBalance(*addr, *symbol)
+	}
+
+	// sendtoken
+	if sendtoken.Parsed() {
+		if *fromAddr == "" || *sendSymbol == "" || *toAddr == "" || *tokenValue == 0 {
+			log.Fatal("sendtoken parames failed")
+		}
+
+		cli.SendToken(*fromAddr, *sendSymbol, *toAddr, *tokenValue)
 	}
 }
 
@@ -167,7 +234,7 @@ func (cli *CLI) CreateWallet(name, pass string) {
 		log.Panic("failed to NewFromMnemonic:", err)
 	}
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 10; i++ {
 		path := hdwallet.MustParseDerivationPath("m/44'/60'/0'/0/" + strconv.Itoa(i))
 		// "m/44'/60'/0'/0/0" -> common.Address
 		account, err := wallet.Derive(path, true)
@@ -193,7 +260,7 @@ func (cli *CLI) CreateWallet(name, pass string) {
 
 // GetBalance ...
 func (cli *CLI) GetBalance(account string) {
-	_, rclient, _, account, err := cli.getAccount(account)
+	rclient, err := cli.GetAccount(account)
 	if err != nil {
 		log.Fatal("failed get account file")
 	}
@@ -206,18 +273,12 @@ func (cli *CLI) getBalance(address string, client *rpc.Client) *big.Int {
 	if err != nil {
 		log.Panic("failed to call eth_getBalance:", err)
 	}
-	return hex2bigInt(result)
-}
-
-func hex2bigInt(hex string) *big.Int {
-	n := new(big.Int)
-	n, _ = n.SetString(hex[2:], 16)
-	return n
+	return utils.Hex2bigInt(result)
 }
 
 // Transfer auth, Key
 func (cli *CLI) Transfer(from, to string, value int64) {
-	fileName, _, _, account, err := cli.getAccount(from)
+	fileName, _, _, account, err := cli.getAccountKey(from)
 	client, err := ethclient.Dial(cli.NetworkURL)
 	if err != nil {
 		log.Panic("failed to Transfer when Dial ", err)
@@ -230,14 +291,15 @@ func (cli *CLI) Transfer(from, to string, value int64) {
 	}
 	fmt.Println(nonce)
 
-	gasLimit := uint64(300000)
-	gasPrice := big.NewInt(21000000000)
+	gasLimit := uint64(30000)
+	gasPrice := big.NewInt(1000000)
 	tx := types.NewTransaction(nonce, common.HexToAddress(to), big.NewInt(value), gasLimit, gasPrice, []byte("salary"))
 
 	hdks := hdkeystore.NewHDKeyStore(cli.DataPath, nil)
 
+	fmt.Println("Please input your password for transfer")
 	auth, err := gopass.GetPasswd()
-	hdks.GetKey(common.HexToAddress(account), hdks.JoinPath(fileName), string(auth))
+	_, err = hdks.GetKey(common.HexToAddress(account), fileName, string(auth))
 	if err != nil {
 		log.Panic("failed to Transfer when GetKey ", err)
 	}
@@ -252,42 +314,217 @@ func (cli *CLI) Transfer(from, to string, value int64) {
 		log.Panic("failed to Transfer when SendTransaction ", err)
 	}
 
+	log.Printf("from: %s Transfer to: %s value: %d success\n", from, to, value)
 }
 
-// getAccount ...
-func (cli *CLI) getAccount(account string) (fileName string, rclient *rpc.Client, key *keystore.Key, accountAddr string, err error) {
+// Addtoken ...
+func (cli *CLI) Addtoken(contactAddr string) (err error) {
+	tokens := []TokenConfig{}
+
+	data, err := ioutil.ReadFile(cli.TokensFile)
+	if err != nil {
+		log.Fatal("failed to ioutil.ReadFile")
+	}
+	err = json.Unmarshal(data, &tokens)
+	if err != nil {
+		log.Fatal("failed to json.Unmarshal")
+	}
+	fmt.Println(tokens)
+
+	if ok, _ := checkUniqueByAddr(contactAddr, tokens); !ok {
+		log.Fatal("failed to checkUnique ")
+	}
+
+	symbol, err := cli.GetSymbol(contactAddr)
+	if err != nil {
+		log.Println("failed to cli.GetSymbol", err)
+		return err
+	}
+	newtoken := TokenConfig{symbol, contactAddr}
+	tokens = append(tokens, newtoken)
+	data, _ = json.Marshal(tokens)
+	utils.WriteKeyFile("tokens.json", data)
+	log.Println("add token successfully")
+	return err
+}
+
+func checkUniqueByAddr(address string, tokens []TokenConfig) (bool, error) {
+	for _, token := range tokens {
+		if token.Addr == address {
+			return false, fmt.Errorf("token: %s existed", token.Symbol)
+		}
+	}
+	return true, nil
+}
+
+func checkUniqueBySymbol(symbol string, tokens []TokenConfig) (bool, error) {
+	for _, token := range tokens {
+		if token.Symbol == symbol {
+			return false, fmt.Errorf("token: %s existed", token.Symbol)
+		}
+	}
+	return true, nil
+}
+
+// GetSymbol ...
+func (cli *CLI) GetSymbol(address string) (string, error) {
+	client, err := ethclient.Dial(cli.NetworkURL)
+	if err != nil {
+		log.Panic("failed to GetSymbol when Dial:", err)
+	}
+	defer client.Close()
+	pxc, err := abi.NewPxc(common.HexToAddress(address), client)
+	if err != nil {
+		log.Panic("failed to abi.NewPxc:", err)
+	}
+	return pxc.Symbol(nil)
+}
+
+// TokenBalance ...
+func (cli *CLI) TokenBalance(addr, symbol string) (int64, error) {
+	tokens := []TokenConfig{}
+
+	data, err := ioutil.ReadFile(cli.TokensFile)
+	if err != nil {
+		log.Fatal("failed to ioutil.ReadFile")
+	}
+	err = json.Unmarshal(data, &tokens)
+	if err != nil {
+		log.Fatal("failed to json.Unmarshal")
+	}
+
+	if ok, _ := checkUniqueBySymbol(symbol, tokens); ok {
+		log.Fatal("the token symbol is not exist ")
+	}
+
+	var tokenAddr string
+	for _, v := range tokens {
+		if symbol == v.Symbol {
+			tokenAddr = v.Addr
+		}
+	}
+
+	client, err := ethclient.Dial(cli.NetworkURL)
+	if err != nil {
+		log.Panic("failed to GetSymbol when Dial:", err)
+	}
+	defer client.Close()
+	pxc, err := abi.NewPxc(common.HexToAddress(tokenAddr), client)
+	if err != nil {
+		log.Panic("failed to abi.NewPxc:", err)
+	}
+	balance, err := pxc.BalanceOf(nil, common.HexToAddress(addr))
+	if err != nil {
+		log.Panic("failed to pxc.BalanceOf:", err)
+	}
+	fmt.Printf("your symbol: %s balance is: %d \n", symbol, balance.Int64())
+	return balance.Int64(), nil
+}
+
+// SendToken ...
+func (cli *CLI) SendToken(from, symbol, to string, value int64) {
+	tokens := []TokenConfig{}
+
+	data, err := ioutil.ReadFile(cli.TokensFile)
+	if err != nil {
+		log.Fatal("failed to ioutil.ReadFile")
+	}
+	err = json.Unmarshal(data, &tokens)
+	if err != nil {
+		log.Fatal("failed to json.Unmarshal")
+	}
+
+	fmt.Println("symbol: ", symbol)
+	if ok, _ := checkUniqueBySymbol(symbol, tokens); ok {
+		log.Fatal("the token symbol is not exist ")
+	}
+
+	var tokenAddr string
+	for _, v := range tokens {
+		if symbol == v.Symbol {
+			tokenAddr = v.Addr
+		}
+	}
+
+	fileName, _, _, _, err := cli.getAccountKey(from)
+
+	fmt.Println("get your filename: ", fileName)
+	hdks := hdkeystore.NewHDKeyStore(cli.DataPath, nil)
+
+	fmt.Println("Please input your password for transfer")
+	auth, err := gopass.GetPasswd()
+	_, err = hdks.GetKey(common.HexToAddress(from), fileName, string(auth))
+	if err != nil {
+		log.Panic("failed to Transfer when GetKey ", err)
+	}
+	keyin, err := os.Open(fileName)
+	if err != nil {
+		log.Panic("failed to read keystore file ", err)
+	}
+	opt, err := bind.NewTransactor(keyin, string(auth))
+	if err != nil {
+		log.Panic("failed to bind.NewTransactor ", err)
+	}
+
+	client, err := ethclient.Dial(cli.NetworkURL)
+	if err != nil {
+		log.Panic("failed to GetSymbol when Dial:", err)
+	}
+	defer client.Close()
+	pxc, err := abi.NewPxc(common.HexToAddress(tokenAddr), client)
+
+	txhash, err := pxc.Transfer(opt, common.HexToAddress(to), big.NewInt(value))
+	if err != nil {
+		log.Panic("failed to Transfer ", err)
+	}
+	fmt.Println("sendtoken call ok,hash=", txhash.Hash().Hex())
+}
+
+// GetAccount ...
+func (cli *CLI) GetAccount(account string) (rclient *rpc.Client, err error) {
+	rclient, err = rpc.Dial(cli.NetworkURL)
+	if err != nil {
+		log.Fatal("failed to rpc.Dial ...")
+	}
+	return rclient, err
+}
+
+// getAccountKey ...
+func (cli *CLI) getAccountKey(account string) (fileName string, rclient *rpc.Client, key *keystore.Key, accountAddr string, err error) {
 	rclient, err = rpc.Dial(cli.NetworkURL)
 	if err != nil {
 		log.Panic("failed to Dial:", err)
 	}
 	defer rclient.Close()
-	infos, err := ioutil.ReadDir(cli.DataPath + "/keystore")
+
+	fmt.Println("Please input your wallet")
+
+	var buffer string
+	for {
+		inputReader := bufio.NewReader(os.Stdin)
+		buffer, err = inputReader.ReadString('\n')
+		buffer = buffer[:len(buffer)-2]
+		if err == nil && buffer != "" {
+			break
+		}
+		fmt.Println("Input walletDir err or nil.Please input agin")
+	}
+
+	infos, err := ioutil.ReadDir(cli.DataPath + "/" + buffer)
 	if err != nil {
 		fmt.Println("failed to ReadDir:", err)
 		return
 	}
+	fmt.Println("Please input your password for get key")
+	auth, err := gopass.GetPasswd()
+
 	for _, info := range infos {
-		if strings.Index(info.Name(), account) != -1 {
-			hdks := hdkeystore.NewHDKeyStore(cli.DataPath, nil)
 
-			fmt.Println("info.Name(): ", hdks.JoinPath(info.Name()))
-
-			keyjson, err := ioutil.ReadFile(hdks.JoinPath(info.Name()))
-			if err != nil {
-				log.Fatal("failed to ioutil.ReadFile ...")
-			}
-			auth, err := gopass.GetPasswd()
-
-			key, err := keystore.DecryptKey(keyjson, string(auth))
-			if err != nil {
-				log.Fatal("failed to keystore.DecryptKey ...")
-			}
-			// Make sure we're really operating on the requested key (no swap attacks)
-			if key.Address != common.HexToAddress(account) {
-				log.Fatal("key content mismatch")
-			}
+		key, err := utils.GetKey(common.HexToAddress(account), utils.WalletDir(cli.DataPath+"/"+buffer, info.Name()), string(auth))
+		if err == nil {
 			accountAddr = account
-			fileName = info.Name()
+			fileName = utils.WalletDir(cli.DataPath+"/"+buffer, info.Name())
+			// fmt.Println("info.Name(): ", info.Name())
 			return fileName, rclient, key, accountAddr, nil
 		}
 	}

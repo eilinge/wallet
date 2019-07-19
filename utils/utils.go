@@ -9,9 +9,14 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
+	"math/big"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // UUID user id
@@ -78,4 +83,41 @@ func toISO8601(t time.Time) string {
 	}
 	return fmt.Sprintf("%04d-%02d-%02dT%02d-%02d-%02d.%09d%s",
 		t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), tz)
+}
+
+// GetKey by address, filename, auth
+func GetKey(addr common.Address, filename, auth string) (*keystore.Key, error) {
+	// Load the key from the keystore and decrypt its contents
+	// log.Printf("addr: %s, filename: %s, auth: %s \n", addr.String(), filename, auth)
+	keyjson, err := ioutil.ReadFile(filename)
+	if err != nil {
+		log.Println("failed to ioutil.ReadFile")
+		return nil, err
+	}
+	key, err := keystore.DecryptKey(keyjson, auth)
+	if err != nil {
+		log.Println("failed to keystore.DecryptKey")
+		return nil, err
+	}
+	// Make sure we're really operating on the requested key (no swap attacks)
+	if key.Address != addr {
+		return nil, fmt.Errorf("key content mismatch: have account %x, want %x", key.Address, addr)
+	}
+	fmt.Println("key.Address: ", key.Address)
+	return key, nil
+}
+
+// WalletDir ...
+func WalletDir(buffer, filename string) string {
+	if filepath.IsAbs(filename) {
+		return filename
+	}
+	return filepath.Join(buffer, filename)
+}
+
+// Hex2bigInt ...
+func Hex2bigInt(hex string) *big.Int {
+	n := new(big.Int)
+	n, _ = n.SetString(hex[2:], 16)
+	return n
 }
