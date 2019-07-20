@@ -89,7 +89,7 @@ func (ks *HDkeyStore) GetKey(addr common.Address, filename, auth string) (*keyst
 // SignTx implements accounts.Wallet, which allows the account to sign an Ethereum transaction.
 func (ks *HDkeyStore) SignTx(account common.Address, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
 
-	fmt.Printf("%+v\n", ks)
+	// fmt.Printf("%+v\n", ks)
 	// Sign the transaction and verify the sender to avoid hardware fault surprises
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, ks.PrivateKeyECDSA)
 	if err != nil {
