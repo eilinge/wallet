@@ -1,6 +1,6 @@
 # wallet
 
-使用golang实现HDWallet(https://www.jianshu.com/p/53405db83c16)钱包:
+使用golang实现HDWallet钱包(https://www.jianshu.com/p/53405db83c16):
 
     1. 创建钱包: ./wallet.exe createwallet -name HDWALLET_NAME
     2. 查询ether余额: ./wallet.exe balance -addr ACCOUNT_ADDRSS
