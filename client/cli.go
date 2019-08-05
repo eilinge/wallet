@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"os"
 	"strconv"
+
 	"wallet/abi"
 	"wallet/hdkeystore"
 	"wallet/hdwallet"
@@ -49,12 +50,12 @@ func NewCLI(path, url string) *CLI {
 
 // Usage ...
 func (cli *CLI) Usage() {
-	fmt.Println("./wallet createwallet -name ACCOUNT_NAME -- for create a new wallet")
-	fmt.Println("./wallet balance -addr ACCOUNT_NAME -- for get ether balance of a address")
-	fmt.Println("./wallet transfer -from ACCOUNT_NAME -to ADDRESS -value VALUE -- for send ether to ADDRESS")
-	fmt.Println("./wallet addtoken -addr CONTRACT_ADDR -- for send ether to ADDRESS")
-	fmt.Println("./wallet tokenbalance -addr ACCOUNT_NAME -symbol TOKEN -- for get token balances")
-	fmt.Println("./wallet sendtoken -from ACCOUNT_NAME -symbol SYMBOL -to ADDRESS -value VALUE -- for send tokens to ADDRESS")
+	fmt.Println("./wallet createwallet -name HDWALLET_NAME -- for create a new wallet")
+	fmt.Println("./wallet balance -addr ACCOUNT_ADDRSS -- for get ether balance of a address")
+	fmt.Println("./wallet transfer -from ACCOUNT_ADDRESS -to ADDRESS -value VALUE -- for send ether to ADDRESS")
+	fmt.Println("./wallet addtoken -addr CONTRACT_ADDRSS -- for add token symbol")
+	fmt.Println("./wallet tokenbalance -addr ACCOUNT_ADDRESS -symbol TOKEN -- for get token balances")
+	fmt.Println("./wallet sendtoken -from ACCOUNT_ADDRESS -symbol SYMBOL -to ADDRESS -value VALUE -- for send tokens to ADDRESS")
 }
 
 func (cli *CLI) validateArgs() {
@@ -300,6 +301,7 @@ func (cli *CLI) Transfer(from, to string, value int64) {
 
 	fmt.Println("Please input your password for transfer")
 	auth, err := gopass.GetPasswd()
+	log.Println("your from address filename: ", fileName)
 	_, err = hdks.GetKey(common.HexToAddress(account), fileName, string(auth))
 	if err != nil {
 		log.Panic("failed to Transfer when GetKey ", err)
@@ -420,6 +422,7 @@ func (cli *CLI) SendToken(from, symbol, to string, value int64) {
 	if err != nil {
 		log.Panicln("failed to cli.ggetSymbolAddr: ", err)
 	}
+	log.Println("from address: ", from)
 	fileName, _, _, _, err := cli.getAccountKey(from)
 
 	fmt.Println("get your filename: ", fileName)
