@@ -31,14 +31,17 @@
 ## 操作流程
 
     1. 使用geth开启私链:
-        `geth --datadir ./data --networkid 15 --port 30303 --rpc --rpcaddr 0.0.0.0 --rpcport 8545 --rpcvhosts "*" --rpcapi "db,net,eth,web3,personal" --rpccorsdomain "*" --ws --wsaddr "localhost" --wsport "8546" --wsorigins "*" --nat "any" --nodiscover --dev --dev.period 1 console 2> 1.log`
+        `geth --datadir ./data --networkid 15 --port 30303 --rpc --rpcaddr 0.0.0.0 --rpcport 8545 --rpcvhosts "*" --rpcapi
+        "db,net,eth,web3,personal" --rpccorsdomain "*" --ws --wsaddr "localhost" --wsport "8546" --wsorigins "*" --nat "any" 
+        --nodiscover --dev --dev.period 1 console 2> 1.log`
     
     2. 编译wallet
         `cd wall && go build -i`
 
     3. `./wallet.exe` 查看help
 
-    4. 使用remix(http://remix.ethereum.org/#optimize=true&evmVersion=null&version=soljson-v0.4.26+commit.4563c3fc.js), 将solidity/ERC20.sol和pxcCoin.sol 部署至 http://localhost:8545
+    4. 使用remix(http://remix.ethereum.org/#optimize=true&evmVersion=null&version=soljson-v0.4.26+commit.4563c3fc.js), 
+        将solidity/ERC20.sol和pxcCoin.sol 部署至 http://localhost:8545
 
 ## 功能的使用
 
