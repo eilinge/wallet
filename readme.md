@@ -1,5 +1,12 @@
 # wallet
 
+## 项目成员
+
+    1. 项目经理: 高野
+    2. 钱包开发: 高野、长青
+
+## resume
+
 使用golang实现HDWallet钱包(https://www.jianshu.com/p/53405db83c16):
 
     1. 创建钱包: ./wallet.exe createwallet -name HDWALLET_NAME
